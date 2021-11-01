@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if uidMatch(userId);
+    }
+    
+    match /rooms/{roomId} {
+      allow create: if isAuthenticated();
+      allow update: if isChatMember(resource.data.participantsArray);
+      allow delete: if false;
+      allow read: if isChatMember(resource.data.participantsArray);
+      
+      match /messages/{messageId} {
+        allow create: if isChatMember(getRoom(roomId).data.participantsArray);
+        allow read: if !existsRoom(roomId) || isChatMember(getRoom(roomId).data.participantsArray);
+        allow update, delete: if false;
+      }
+    }
+    
+    function getRoom(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId))
+    }
+    function existsRoom(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId))
+    }
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function uidMatch(uid) {
+      return isAuthenticated() && uid == request.auth.uid
+    }
+    function isChatMember(membersList) {
+      return isAuthenticated() && request.auth.token.email in membersList;
+    }
+
+  }
+}
